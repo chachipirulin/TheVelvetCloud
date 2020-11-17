@@ -1,6 +1,6 @@
 % Comments at bottom
  
-    classdef SUSTAINV1_2 < audioPlugin         
+    classdef SUSTAINV8BAD < audioPlugin         
  
 %% PROPERTIES #############################################################
     properties
@@ -8,44 +8,14 @@
         One_time_trigger = 0;
         PostStart = 13231; % So we start FROM this position to acess past 
         init = false;       % (Re)Initialise variables
-        SustainThreshold = 0.85;
-        sustainKnobGain = 0.3;
-        Nd = 120;
-        playbackVoiceGain = 0.2;
     end
-    
-    
-        % USER CONTROLS
-    properties (Constant)
-        
-         PluginInterface = audioPluginInterface( ...
-             audioPluginParameter('SustainThreshold', ...
-                'DisplayName','SustainThreshold', ...
-                'Style','rotaryknob', ...
-                'Mapping',{'lin',0,1}), ...
-                             audioPluginParameter('Nd', ...
-                'DisplayName','Nd', ...
-                'Style','vslider', ...
-                'Mapping',{'lin',1,1000}), ...
-                             audioPluginParameter('playbackVoiceGain', ...
-                'DisplayName','playbackVoiceGain', ...
-                'Style','rotaryknob', ...
-                'Mapping',{'lin',0,1}), ...
-            audioPluginParameter('sustainKnobGain', ...
-            'DisplayName','sustainKnobGain', ...
-                'Mapping',{'lin',0,1}, ...
-                'Style','rotaryknob'))
-            
-    end
-    
-    
 % Initialized when plugin is created
     properties (Access = private)
  
 %__________________ Definitions ___________________%
-%SustainThreshold = 0; %[0 1] gain has to be higher than so sustain acts
+SustainThreshold = 0.6; %[0 1] gain has to be higher than so sustain acts
 NumberOfVoicesAverage = 32;  % Select average number of voices per sample OR grain size: 30 / second
- % Impulses per second in Velvet noise, THE HIGHER, THE NOISER!!!!! THE LOWER, THE "BEATING"!
+Nd = 300; % Impulses per second in Velvet noise, THE HIGHER, THE NOISER!!!!! THE LOWER, THE "BEATING"!
 DecayConstant = 0.001; % Decay constant for the impulses in vn
 WindowsLength = 13230; %round(3 * 10e-2 * Fs); % 30ms, dangelo example last graph
 %ButtonTakeNewSnippet = true; % When you press the pedal, take a next snippet--> THIS IS SUBTITUTED BY IF BUFFER IS FULL OR NOT, IF YOOU PRESS, IT IS "empty"
@@ -56,10 +26,10 @@ Po = 2e-5; % Pressure reference level, NOT USED IN V3
 FirstRise = 0;
 howFullIsBuffer = 0;
 ReachingMax = 0;
-
-%sustainKnobGain = 0;
-% maximunsArray = zeros(1024*,1); Y% 18ms --> 795 samples
-
+playbackVoiceGain = 0.1;
+sustainKnobGain = 0.2;
+ ReadyToTakeSnippet = false;
+ 
 %__________________ Low Pass coefs ffor convolving snippet _________________%
     % fcut
 Fcut= 5000;
@@ -70,7 +40,7 @@ b = zeros(1, 3);
 a = zeros(1, 3);
  
 %__________________ Preinitializations ___________________%
-ReadyToTakeSnippet = false;
+ 
 % out_mono = zeros(length(in_mono), 1);
 inSnippetBuffer = zeros(13230, 1); % Input buffer to hold a snippet
 CopyOf_inSnippetBuffer = zeros(13230, 1);
@@ -85,15 +55,15 @@ arrayOfImpulses = zeros(1024, 1);
  
 %__________________ Random preallocations for positions and signs ___________________%
  
-signsArray = [  1  -1  -1   1  -1  1    -1    -1     1    -1     1     1     1     1     1        1      -1    -1     1    -1    -1     1    -1    -1    -1    -1     1  zeros(1,6000) ]';
-positionsArray = [  148     500   750  1000 1157        2140             2633        3235        3481        3538        3963        4346        4362 4507        4786        4858        5337        6082        7755        7980        9020        9060        9137        9552       10200       10324       12356  zeros(1,6000)]';
+signsArray = [  1  -1  -1   1  -1  1    -1    -1     1    -1     1     1     1     1     1        1      -1    -1     1    -1    -1     1    -1    -1    -1    -1     1  zeros(1,100) ]';
+positionsArray = [  148     500   750  1000 1157        2140             2633        3235        3481        3538        3963        4346        4362 4507        4786        4858        5337        6082        7755        7980        9020        9060        9137        9552       10200       10324       12356  zeros(1,100)]';
 % already sorted and zero padded
 TotalImpulses = 27;
  
     end
       
     methods
-%% MAIN LOOP #############################################################
+%% MAIN LOOP ############################################################################################################################
 function out = process(p,in)      
     
     %% BEFORE RUNNING, RUN THIS LINE BELOW
@@ -139,18 +109,10 @@ function out = process(p,in)
             %% Update Equation
         for n = 1 : length(in_mono) % 1 y 2
             
- 
                 % Velvet noise for this time
-                p.Vn = 0;
-
-                    if rand < p.Nd/p.Fs
-                        p.Vn = round(rand) * 2 - 1;
-                    end
+            p.Vn = getVnoiseSample(p.Fs, p.Nd);
                 
                 if p.Vn  ~= 0 % then it is an impulse, update buffers
-                    
-                    % DUMMY buffer to ckeck everything is right
-%                  p.VnBuffer = putVectorInBufferV3(p.Vn , p.VnBuffer, p.BufferLength, n );
                     
                     % Update total impulses
                  p.TotalImpulses = p.TotalImpulses + 1;
@@ -192,41 +154,40 @@ function out = process(p,in)
             % Mix Sustain & Input
         out = p.sustainKnobGain .* out_mono + (1 - p.sustainKnobGain) .* in_mono;
        
-        out = [out out]; % Here you are your TRUE stereo
+        out = [out zeros(length(in_mono), 1)]; % Here you are your stereo
     
-        %% If a value of our snippet was higher than thres, add 1 to  first
+        % If a value of our snippet was higher than thres, add 1 to  first
         % rise
 
         
-    if any((in_mono) > p.SustainThreshold) && p.ReadyToTakeSnippet == true 
+    if any((in_mono) > p.SustainThreshold ) && p.ReadyToTakeSnippet == true &&median(abs(in_mono))>0.30 &&mean(abs(in_mono))>0.36
         p.ReachingMax = 1; % DUMMY to check
         p.FirstRise = p.FirstRise + 1;
-        
-        
+        p.ReadyToTakeSnippet = false;
                 % If actually it was a first rise (=1), then take the
                 % snippet
-            if p.FirstRise == 1 %&& median(abs(in_mono))>0.26
-
+            if p.FirstRise == 1
+                
+                        median(abs(in_mono))
+        std(abs(in_mono))
+        mean(abs(in_mono))
                 p.IsSnippetBufferFull = false;
-                disp("Take new snippet");
-                p.ReadyToTakeSnippet = false;
             end
             
-
+%         disp("We HAVE REACHED THE THRESLHOLD: " + p.FirstRise);
  
-    elseif any((in_mono) > 0.6 ) == false % p.SustainThreshold -0.3
-
-       
+    elseif any((in_mono) > p.SustainThreshold) == false %If there is no one higher than threshold
+        
             % We are ready to take a new snippet
         p.ReadyToTakeSnippet = true;
+        p.ReachingMax = 0; % DUMMY to check
         p.FirstRise = 0;
-        disp("ReadyToTakeSnippet");
-        
+%         disp("We FIRST rise, reinit buffer: " + p.FirstRise);
     end
 %             
             
-
-        close all;
+ 
+%        close all;
 %     figure; hold on; 
 %     subplot(331); stem(p.IsSnippetBufferFull); title("p.IsSnippetBufferFull");
 %     subplot(332); plot(p.CopyOf_inSnippetBuffer); hold on; title("p.CopyOf_inSnippetBuffer");
@@ -314,7 +275,7 @@ function out = process(p,in)
  
                 if  p.One_time_trigger == 0 % Create the WELCH WINDOW one time! 
  
-                        p.SustainThreshold = 0.86; %0.9 [0 1] gain has to be higher than so sustain acts
+                        p.SustainThreshold = 0.8; %[0 1] gain has to be higher than so sustain acts
                         p.WindowsStatic = welchwin(p.WindowsLength);
                         p.inSnippetBuffer = zeros(13230, 1);
                         p.CopyOf_inSnippetBuffer = zeros(13230, 1);
@@ -324,18 +285,18 @@ function out = process(p,in)
                         p.playbackVoice = 0;
                         p.Nd = 120;
                         p.VnBuffer = zeros(1, 13230);
-p.signsArray = [  1  -1  -1   1  -1  1    -1    -1     1    -1     1     1     1     1     1        1      -1    -1     1    -1    -1     1    -1    -1    -1    -1     1  zeros(1,6000) ]';
-p.positionsArray = [  148     500   750  1000 1157        2140             2633        3235        3481        3538        3963        4346        4362 4507        4786        4858        5337        6082        7755        7980        9020        9060        9137        9552       10200       10324       12356  zeros(1,6000)]';
+p.signsArray = [  1  -1  -1   1  -1  1    -1    -1     1    -1     1     1     1     1     1        1      -1    -1     1    -1    -1     1    -1    -1    -1    -1     1  zeros(1,100) ]';
+p.positionsArray = [  148     500   750  1000 1157        2140             2633        3235        3481        3538        3963        4346        4362 4507        4786        4858        5337        6082        7755        7980        9020        9060        9137        9552       10200       10324       12356  zeros(1,100)]';
 % already sorted and zero padded
                         p.TotalImpulses = 27;
                         p.playbackVoiceGain = 0.2;
-                        %p.sustainKnobGain = 0.3;
-
+                        p.sustainKnobGain = 0.5;
+                        p.ReadyToTakeSnippet = false;
                         %  _____ Filter definitionfor convolving snippet ________
                        [p.b,p.a] = butter(p.order, p.Wn, 'low');
                 end
  
-
+ 
             end
  
         end
@@ -358,15 +319,22 @@ p.positionsArray = [  148     500   750  1000 1157        2140             2633 
  
  
 %% RUN PLUGIN ################################################################
-% validateAudioPlugin SUSTAINV1_2.m
-% audioTestBench SUSTAINV1_2.m
-% generateAudioPlugin SUSTAINV1_2
+% validateAudioPlugin SUSTAINV8.m
+% audioTestBench SUSTAINV8.m
+% generateAudioPlugin SUSTAINV8
  
 %% VERSION COMMENTS
+
+%   - Take snippet if in>thresholdLimit && meanIn > thresholdMean
+%   - Do not take new snippet until all values of INsnippet are under
+%   threshold (avoid lonely peaks>thres that make us take a new snippet)
+%
+%   - Listening to the mean of voices:
+%       Nd40 : mean= ARTIFACTS
+%       Nd80 : mean= Nice
+%       Nd120 : mean= nice
+%       Nd150 : mean= denser
+%       Nd3000 : mean= too dense
  
-%   - Turnable parameters:
-%           SustainThreshold
-%           SustainKnobGain
-%           Nd: now is working
-%           PlaybackVoiceGain
- 
+%% Properties TRICKS: https://se.mathworks.com/help/audio/ug/tips-and-tricks-for-plugin-authoring.html
+

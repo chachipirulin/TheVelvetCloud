@@ -1,6 +1,6 @@
 % Comments at bottom
  
-    classdef SUSTAINV1_2 < audioPlugin         
+    classdef SUSTAINV1_1 < audioPlugin         
  
 %% PROPERTIES #############################################################
     properties
@@ -26,7 +26,7 @@
                              audioPluginParameter('Nd', ...
                 'DisplayName','Nd', ...
                 'Style','vslider', ...
-                'Mapping',{'lin',1,1000}), ...
+                'Mapping',{'lin',1,5000}), ...
                              audioPluginParameter('playbackVoiceGain', ...
                 'DisplayName','playbackVoiceGain', ...
                 'Style','rotaryknob', ...
@@ -85,8 +85,8 @@ arrayOfImpulses = zeros(1024, 1);
  
 %__________________ Random preallocations for positions and signs ___________________%
  
-signsArray = [  1  -1  -1   1  -1  1    -1    -1     1    -1     1     1     1     1     1        1      -1    -1     1    -1    -1     1    -1    -1    -1    -1     1  zeros(1,6000) ]';
-positionsArray = [  148     500   750  1000 1157        2140             2633        3235        3481        3538        3963        4346        4362 4507        4786        4858        5337        6082        7755        7980        9020        9060        9137        9552       10200       10324       12356  zeros(1,6000)]';
+signsArray = [  1  -1  -1   1  -1  1    -1    -1     1    -1     1     1     1     1     1        1      -1    -1     1    -1    -1     1    -1    -1    -1    -1     1  zeros(1,100) ]';
+positionsArray = [  148     500   750  1000 1157        2140             2633        3235        3481        3538        3963        4346        4362 4507        4786        4858        5337        6082        7755        7980        9020        9060        9137        9552       10200       10324       12356  zeros(1,100)]';
 % already sorted and zero padded
 TotalImpulses = 27;
  
@@ -324,8 +324,8 @@ function out = process(p,in)
                         p.playbackVoice = 0;
                         p.Nd = 120;
                         p.VnBuffer = zeros(1, 13230);
-p.signsArray = [  1  -1  -1   1  -1  1    -1    -1     1    -1     1     1     1     1     1        1      -1    -1     1    -1    -1     1    -1    -1    -1    -1     1  zeros(1,6000) ]';
-p.positionsArray = [  148     500   750  1000 1157        2140             2633        3235        3481        3538        3963        4346        4362 4507        4786        4858        5337        6082        7755        7980        9020        9060        9137        9552       10200       10324       12356  zeros(1,6000)]';
+p.signsArray = [  1  -1  -1   1  -1  1    -1    -1     1    -1     1     1     1     1     1        1      -1    -1     1    -1    -1     1    -1    -1    -1    -1     1  zeros(1,100) ]';
+p.positionsArray = [  148     500   750  1000 1157        2140             2633        3235        3481        3538        3963        4346        4362 4507        4786        4858        5337        6082        7755        7980        9020        9060        9137        9552       10200       10324       12356  zeros(1,100)]';
 % already sorted and zero padded
                         p.TotalImpulses = 27;
                         p.playbackVoiceGain = 0.2;
@@ -358,15 +358,16 @@ p.positionsArray = [  148     500   750  1000 1157        2140             2633 
  
  
 %% RUN PLUGIN ################################################################
-% validateAudioPlugin SUSTAINV1_2.m
-% audioTestBench SUSTAINV1_2.m
-% generateAudioPlugin SUSTAINV1_2
+% validateAudioPlugin SUSTAINV1_1.m
+% audioTestBench SUSTAINV1_1.m
+% generateAudioPlugin SUSTAINV1_1
  
 %% VERSION COMMENTS
  
 %   - Turnable parameters:
-%           SustainThreshold
+%           SustsainThreshold
 %           SustainKnobGain
-%           Nd: now is working
+%           Nd: PROBLEM, CRASHES STRAIGHT AWAY IN ABLETON, even if it is
+%           not "called" as a function
 %           PlaybackVoiceGain
  

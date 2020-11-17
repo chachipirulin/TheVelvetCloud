@@ -1,51 +1,21 @@
 % Comments at bottom
  
-    classdef SUSTAINV1_2 < audioPlugin         
+    classdef SUSTAINV10EXPERIMENTS < audioPlugin         
  
 %% PROPERTIES #############################################################
     properties
         Fs = 44100;
         One_time_trigger = 0;
-        PostStart = 13231; % So we start FROM this position to acess past 
+        PostStart = 13230 +1; % So we start FROM this position to acess past 
         init = false;       % (Re)Initialise variables
-        SustainThreshold = 0.85;
-        sustainKnobGain = 0.3;
-        Nd = 120;
-        playbackVoiceGain = 0.2;
     end
-    
-    
-        % USER CONTROLS
-    properties (Constant)
-        
-         PluginInterface = audioPluginInterface( ...
-             audioPluginParameter('SustainThreshold', ...
-                'DisplayName','SustainThreshold', ...
-                'Style','rotaryknob', ...
-                'Mapping',{'lin',0,1}), ...
-                             audioPluginParameter('Nd', ...
-                'DisplayName','Nd', ...
-                'Style','vslider', ...
-                'Mapping',{'lin',1,1000}), ...
-                             audioPluginParameter('playbackVoiceGain', ...
-                'DisplayName','playbackVoiceGain', ...
-                'Style','rotaryknob', ...
-                'Mapping',{'lin',0,1}), ...
-            audioPluginParameter('sustainKnobGain', ...
-            'DisplayName','sustainKnobGain', ...
-                'Mapping',{'lin',0,1}, ...
-                'Style','rotaryknob'))
-            
-    end
-    
-    
 % Initialized when plugin is created
     properties (Access = private)
  
 %__________________ Definitions ___________________%
-%SustainThreshold = 0; %[0 1] gain has to be higher than so sustain acts
+SustainThreshold = 0; %[0 1] gain has to be higher than so sustain acts
 NumberOfVoicesAverage = 32;  % Select average number of voices per sample OR grain size: 30 / second
- % Impulses per second in Velvet noise, THE HIGHER, THE NOISER!!!!! THE LOWER, THE "BEATING"!
+Nd = 3000; % Impulses per second in Velvet noise, THE HIGHER, THE NOISER!!!!! THE LOWER, THE "BEATING"!
 DecayConstant = 0.001; % Decay constant for the impulses in vn
 WindowsLength = 13230; %round(3 * 10e-2 * Fs); % 30ms, dangelo example last graph
 %ButtonTakeNewSnippet = true; % When you press the pedal, take a next snippet--> THIS IS SUBTITUTED BY IF BUFFER IS FULL OR NOT, IF YOOU PRESS, IT IS "empty"
@@ -56,8 +26,8 @@ Po = 2e-5; % Pressure reference level, NOT USED IN V3
 FirstRise = 0;
 howFullIsBuffer = 0;
 ReachingMax = 0;
-
-%sustainKnobGain = 0;
+playbackVoiceGain = 0;
+sustainKnobGain = 0;
 % maximunsArray = zeros(1024*,1); Y% 18ms --> 795 samples
 
 %__________________ Low Pass coefs ffor convolving snippet _________________%
@@ -85,8 +55,8 @@ arrayOfImpulses = zeros(1024, 1);
  
 %__________________ Random preallocations for positions and signs ___________________%
  
-signsArray = [  1  -1  -1   1  -1  1    -1    -1     1    -1     1     1     1     1     1        1      -1    -1     1    -1    -1     1    -1    -1    -1    -1     1  zeros(1,6000) ]';
-positionsArray = [  148     500   750  1000 1157        2140             2633        3235        3481        3538        3963        4346        4362 4507        4786        4858        5337        6082        7755        7980        9020        9060        9137        9552       10200       10324       12356  zeros(1,6000)]';
+signsArray = [  1  -1  -1   1  -1  1    -1    -1     1    -1     1     1     1     1     1        1      -1    -1     1    -1    -1     1    -1    -1    -1    -1     1  zeros(1,100) ]';
+positionsArray = [  148     500   750  1000 1157        2140             2633        3235        3481        3538        3963        4346        4362 4507        4786        4858        5337        6082        7755        7980        9020        9060        9137        9552       10200       10324       12356  zeros(1,100)]';
 % already sorted and zero padded
 TotalImpulses = 27;
  
@@ -141,11 +111,7 @@ function out = process(p,in)
             
  
                 % Velvet noise for this time
-                p.Vn = 0;
-
-                    if rand < p.Nd/p.Fs
-                        p.Vn = round(rand) * 2 - 1;
-                    end
+            p.Vn = getVnoiseSample(p.Fs, p.Nd);
                 
                 if p.Vn  ~= 0 % then it is an impulse, update buffers
                     
@@ -314,22 +280,22 @@ function out = process(p,in)
  
                 if  p.One_time_trigger == 0 % Create the WELCH WINDOW one time! 
  
-                        p.SustainThreshold = 0.86; %0.9 [0 1] gain has to be higher than so sustain acts
-                        p.WindowsStatic = welchwin(p.WindowsLength);
+                        p.SustainThreshold = 0.85; %0.9 [0 1] gain has to be higher than so sustain acts
+                        p.WindowsStatic = welchwin(13230);
                         p.inSnippetBuffer = zeros(13230, 1);
                         p.CopyOf_inSnippetBuffer = zeros(13230, 1);
                         p.One_time_trigger = ++p.One_time_trigger;
                         p.IsSnippetBufferFull = false;
                         p.SamplesAlreadyInBuffer = 0;
                         p.playbackVoice = 0;
-                        p.Nd = 120;
-                        p.VnBuffer = zeros(1, 13230);
-p.signsArray = [  1  -1  -1   1  -1  1    -1    -1     1    -1     1     1     1     1     1        1      -1    -1     1    -1    -1     1    -1    -1    -1    -1     1  zeros(1,6000) ]';
-p.positionsArray = [  148     500   750  1000 1157        2140             2633        3235        3481        3538        3963        4346        4362 4507        4786        4858        5337        6082        7755        7980        9020        9060        9137        9552       10200       10324       12356  zeros(1,6000)]';
+                        p.Nd = 3000;
+                        p.VnBuffer = zeros(1, p.WindowsLength);
+p.signsArray = [  1  -1  -1   1  -1  1    -1    -1     1    -1     1     1     1     1     1        1      -1    -1     1    -1    -1     1    -1    -1    -1    -1     1  zeros(1,100) ]';
+p.positionsArray = [  148     500   750  1000 1157        2140             2633        3235        3481        3538        3963        4346        4362 4507        4786        4858        5337        6082        7755        7980        9020        9060        9137        9552       10200       10324       12356  zeros(1,100)]';
 % already sorted and zero padded
                         p.TotalImpulses = 27;
                         p.playbackVoiceGain = 0.2;
-                        %p.sustainKnobGain = 0.3;
+                        p.sustainKnobGain = 0.3;
 
                         %  _____ Filter definitionfor convolving snippet ________
                        [p.b,p.a] = butter(p.order, p.Wn, 'low');
@@ -358,15 +324,18 @@ p.positionsArray = [  148     500   750  1000 1157        2140             2633 
  
  
 %% RUN PLUGIN ################################################################
-% validateAudioPlugin SUSTAINV1_2.m
-% audioTestBench SUSTAINV1_2.m
-% generateAudioPlugin SUSTAINV1_2
+% validateAudioPlugin SUSTAINV10EXPERIMENTS.m
+% audioTestBench SUSTAINV10EXPERIMENTS.m
+% generateAudioPlugin SUSTAINV10EXPERIMENTS
  
 %% VERSION COMMENTS
  
-%   - Turnable parameters:
-%           SustainThreshold
-%           SustainKnobGain
-%           Nd: now is working
-%           PlaybackVoiceGain
+%   - Convolving Snippet is triggered just in the first rise (copy from V3)
+%   - Computation time = 1% CPU
+%   - Ready to take snippet when <0.6
+%   - "Real" output stereo
+%   - Values (playbackVoiceGain, sustainKnobGain) reassigned
+
+
+%   - Mean(in)<someThres considered to use...but not used
  
